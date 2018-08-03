@@ -147,7 +147,6 @@ function! s:find_last_pos(lnum, text, match)
 endfunction
 
 function! elixir#indent#handle_top_of_file(context)
-  call s:debug("hello")
   if a:context.prev_nb_lnum == 0
     return 0
   else
@@ -261,111 +260,33 @@ function! elixir#indent#handle_inside_block(context)
   if pair_lnum != 0 || pair_col != 0
     let pair_text = getline(pair_lnum)
     let pair_char = pair_text[pair_col - 1]
+
+    let config = {
+          \'c': {'aligned_clauses': s:keyword('end')},
+          \'t': {'aligned_clauses': s:keyword('end\|catch\|rescue\|after')},
+          \'r': {'aligned_clauses': s:keyword('end\|after')},
+          \'i': {'aligned_clauses': s:keyword('end\|else')},
+          \'[': {'aligned_clauses': ']'},
+          \'{': {'aligned_clauses': '}'},
+          \'(': {'aligned_clauses': ')'}
+          \}
+
     if pair_char == 'w'
       " Handle with
       call s:debug("testing s:do_handle_with")
       return s:do_handle_with(pair_lnum, pair_col, a:context)
-    elseif pair_char == 'i'
-      " Handle if
-      call s:debug("testing s:do_handle_if")
-      return s:do_handle_if(pair_lnum, pair_col, a:context)
-    elseif pair_char == 'c' && pair_text[pair_col] == 'a'
-      " Handle case
-      call s:debug("testing s:do_handle_case")
-      return s:do_handle_case(pair_lnum, pair_col, a:context)
-    elseif pair_char == 'c' && pair_text[pair_col] == 'o'
-      " Handle cond
-      call s:debug("testing s:do_handle_cond")
-      return s:do_handle_cond(pair_lnum, pair_col, a:context)
-    elseif pair_char == 't'
-      " Handle try
-      call s:debug("testing s:do_handle_try")
-      return s:do_handle_try(pair_lnum, pair_col, a:context)
-    elseif pair_char == 'r'
-      " Handle receive
-      call s:debug("testing s:do_handle_receive")
-      return s:do_handle_receive(pair_lnum, pair_col, a:context)
     elseif pair_char == 'f'
       " Handle fn
       call s:debug("testing s:do_handle_fn")
       return s:do_handle_fn(pair_lnum, pair_col, a:context)
-    elseif pair_char == '['
-      " Handle [
-      call s:debug("testing s:do_handle_square_brace")
-      return s:do_handle_square_brace(pair_lnum, pair_col, a:context)
-    elseif pair_char == '{'
-      " Handle {
-      call s:debug("testing s:do_handle_curly_brace")
-      return s:do_handle_curly_brace(pair_lnum, pair_col, a:context)
-    elseif pair_char == '('
-      " Handle (
-      call s:debug("testing s:do_handle_parens")
-      return s:do_handle_parens(pair_lnum, pair_col, a:context)
+    elseif has_key(config, pair_char)
+      return s:_handle_block(pair_lnum, config[pair_char], a:context)
     else
       " Should never get hit!
       return -1
     end
   else
     return -1
-  end
-endfunction
-
-function! s:do_handle_try(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': s:keyword('end\|catch\|rescue\|after'),
-        \'match_clauses': s:keyword('catch\|rescue')}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    if search(config.match_clauses, 'bnW', a:start_lnum) != 0
-      call s:debug("match_clause")
-      return s:do_handle_pattern_match_block(a:start_lnum, a:context)
-    else
-      return indent(a:start_lnum) + s:sw()
-    end
-  end
-endfunction
-
-function! s:do_handle_case(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': s:keyword('end')}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    call s:debug("match_clause")
-    return s:do_handle_pattern_match_block(a:start_lnum, a:context)
-  end
-endfunction
-
-function! s:do_handle_cond(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': s:keyword('end'),
-        \'match_clauses': s:keyword('catch\|rescue')}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    call s:debug("match_clause")
-    return s:do_handle_pattern_match_block(a:start_lnum, a:context)
-  end
-endfunction
-
-function! s:do_handle_receive(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': s:keyword('end\|after'),
-        \'match_clauses': s:keyword('catch\|rescue')}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    call s:debug("match_clause")
-    return s:do_handle_pattern_match_block(a:start_lnum, a:context)
   end
 endfunction
 
@@ -407,20 +328,6 @@ function! s:do_handle_with(start_lnum, start_col, context)
   end
 endfunction
 
-function! s:do_handle_if(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': s:keyword('end\|else'),
-        \'match_clauses': s:keyword('catch\|rescue')}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    call s:debug("current line is nested inside if")
-    return indent(a:start_lnum) + s:sw()
-  end
-endfunction
-
 " Implements indent for pattern-matching blocks (e.g. case, fn, with/else)
 function! s:do_handle_pattern_match_block(start_lnum, context)
   call s:debug("running s:do_handle_pattern_match_block")
@@ -459,58 +366,12 @@ function! s:do_handle_fn(start_lnum, start_col, context)
   endif
 endfunction
 
-function! s:do_handle_square_brace(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': ']'}
-
-  if s:starts_with(a:context, config.aligned_clauses)
+function! s:_handle_block(start_lnum, config, context)
+  if s:starts_with(a:context, a:config.aligned_clauses)
     call s:debug("clause")
     return indent(a:start_lnum)
   else
-    let start_text = getline(a:start_lnum)
-    let substr = strpart(start_text, a:start_col, len(start_text)-1)
-    let indent_pos = match(substr, '\S')
-    if indent_pos != -1
-      return indent_pos + a:start_col
-    else
-      return indent(a:start_lnum) + s:sw()
-    endif
-  end
-endfunction
-
-function! s:do_handle_curly_brace(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': '}'}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    return indent(a:start_lnum) + s:sw()
-  endif
-endfunction
-
-function! s:do_handle_parens(start_lnum, start_col, context)
-  let config = {
-        \'aligned_clauses': ')'}
-
-  if s:starts_with(a:context, config.aligned_clauses)
-    call s:debug("clause")
-    return indent(a:start_lnum)
-  else
-    if s:prev_ends_with(a:context, '(')
-      return indent(a:context.prev_nb_lnum) + s:sw()
-    elseif a:start_lnum == a:context.prev_nb_lnum
-      " Align indent (e.g. "def add(a,")
-      let pos = s:find_last_pos(a:context.prev_nb_lnum, a:context.prev_nb_text, '[^(]\+,')
-      if pos == -1
-        return 0
-      else
-        return pos
-      end
-    else
-      return indent(a:context.prev_nb_lnum)
-    end
+    return s:do_handle_pattern_match_block(a:start_lnum, a:context)
   endif
 endfunction
 
